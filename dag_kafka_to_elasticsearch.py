@@ -295,11 +295,13 @@ def consume_data(**context):
             doc = transform_message(raw_dict)
 
             # ID unique : clé Kafka → id GDELT → fallback partition-offset
-            doc_id = (
-                message.key.decode("utf-8") if message.key else None
-                or doc.get("id")
-                or f"{message.partition}-{message.offset}"
-            )
+            if message.key:
+                doc_id = message.key.decode("utf-8").strip()
+            elif doc.get("id"):
+                doc_id = doc["id"]
+            else:
+                doc_id = f"{message.partition}-{message.offset}"
+
 
             # Indexation dans Elasticsearch
             index_to_elasticsearch(es, doc, doc_id)
