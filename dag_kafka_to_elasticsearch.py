@@ -268,13 +268,15 @@ def consume_data(**context):
 
     # ── Connexion Kafka ─────────────────────────────────
     consumer = KafkaConsumer(
-        KAFKA_TOPIC,
-        bootstrap_servers=KAFKA_BROKERS,
-        auto_offset_reset="earliest",          # earliest ou latest
-        group_id=None,
-        consumer_timeout_ms=KAFKA_CONSUME_TIMEOUT,
-        value_deserializer=lambda x: x        # on garde les bytes bruts
-    )
+    KAFKA_TOPIC,
+    bootstrap_servers=KAFKA_BROKERS,
+    auto_offset_reset="earliest",
+    group_id=None,
+    consumer_timeout_ms=120_000,
+    max_poll_records=1000,
+    value_deserializer=lambda x: x
+)
+
 
     count_ok = count_error = 0
 
