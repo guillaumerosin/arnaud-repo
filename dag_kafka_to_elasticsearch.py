@@ -266,12 +266,12 @@ def consume_data(**context):
     except Exception as e:
         raise RuntimeError(f"[ES] Connexion impossible : {e}")
 
-    # ── Connexion Kafka (slide 48) ─────────────────────────────────
+    # ── Connexion Kafka ─────────────────────────────────
     consumer = KafkaConsumer(
         KAFKA_TOPIC,
         bootstrap_servers=KAFKA_BROKERS,
         auto_offset_reset="earliest",          # earliest ou latest
-        group_id=KAFKA_GROUP_ID,
+        group_id=None,
         consumer_timeout_ms=KAFKA_CONSUME_TIMEOUT,
         value_deserializer=lambda x: x        # on garde les bytes bruts
     )
