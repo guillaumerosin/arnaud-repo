@@ -17,7 +17,7 @@ from elasticsearch import Elasticsearch
 
 KAFKA_BROKERS         = "172.20.0.51:9092"
 KAFKA_TOPIC           = "test"
-KAFKA_GROUP_ID        = "gdelt-elastic-group"
+KAFKA_GROUP_ID = "gdelt-elastic-group-v2"
 KAFKA_CONSUME_TIMEOUT = 60_000
 
 ES_HOST     = "https://172.20.0.201:9200"
