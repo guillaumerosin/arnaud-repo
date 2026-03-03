@@ -1,0 +1,20 @@
+def transform_v2dates(raw: str) -> str:
+    if not raw: return "Aucune date mentionnée dans le texte."
+    blocks  = [b.strip() for b in raw.split(";#") if b.strip()]
+    results = []
+    for block in blocks:
+        parts = [p for p in block.split("#") if p != ""]
+        if len(parts) != 5: continue
+        try:
+            res, mo, d, y, offset = int(parts[0]),int(parts[1]),int(parts[2]),int(parts[3]),int(parts[4])
+            mn  = MONTHS_FR.get(mo) if mo > 0 else None
+            pos = "titre/intro" if offset < 200 else "corps" if offset < 1000 else "conclusion"
+            if   res == 1: date_str = f"Année {y}" if y > 0 else "Année inconnue"
+            elif res == 2: date_str = f"{mn} {y}"  if mn else f"Mois {mo}/{y}"
+            elif res == 3: date_str = f"{d:02d} {mn} {y}" if mn else f"{d}/{mo}/{y}"
+            elif res == 4: date_str = f"{d:02d} {mn}"     if mn else f"{d}/{mo}"
+            else:          date_str = f"Résolution inconnue ({res})"
+            results.append(f"{date_str} (position {offset}, {pos} de l'article)")
+        except: continue
+    if not results: return "Aucune date parseable."
+    return f"{len(results)} date(s) mentionnée(s) dans le texte :\n" + "\n".join(f"  • {r}" for r in results)
