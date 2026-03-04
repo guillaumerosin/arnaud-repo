@@ -43,7 +43,6 @@ def parse_gdelt_line(line: str) -> dict:
 
 
 # ─── TRANSFORMATEURS ──────────────────────────────────────────────────────────
-
 SOURCE_TYPE_MAP = {
     1: "WEB",
     2: "CITATIONONLY",
@@ -55,11 +54,15 @@ SOURCE_TYPE_MAP = {
 
 def transform_source_type(raw) -> str:
     try:
-        code = int(raw)
-        label, desc = SOURCE_TYPE_MAP.get(code, ("UNKNOWN", f"Code non référencé : {code}"))
-        return f"[{code}] {label} — {desc}"
+        code = int(str(raw).strip())
     except:
         return f"Valeur invalide : '{raw}'"
+
+    label = SOURCE_TYPE_MAP.get(code)
+    if label is None:
+        return f"[{code}] UNKNOWN"
+
+    return f"[{code}] {label}"
 
 
 def transform_date(raw: str) -> str:
