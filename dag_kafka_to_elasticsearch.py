@@ -66,11 +66,18 @@ def transform_source_type(raw) -> str:
 
 
 def transform_date(raw: str) -> str:
-    """YYYYMMDDHHMMSS → YYYYMMDDHHMMSS normalisé (complète avec des 0 si partiel)."""
+    """YYYYMMDDHHMMSS → JJ-MM-AAAA."""
     val = str(raw).strip()
     if not val or val == "0":
-        return "00000000000000"
-    return val.ljust(14, "0")[:14]
+        return "00-00-0000"
+    val = val.ljust(8, "0")[:8]  # AAAAMMJJ
+    try:
+        y = int(val[0:4])
+        m = int(val[4:6])
+        d = int(val[6:8])
+    except:
+        return "00-00-0000"
+    return f"{d:02d}-{m:02d}-{y:04d}"
 
 
 def transform_v15tone(raw: str) -> str:
@@ -182,28 +189,24 @@ def transform_v2gcam(raw: str) -> str:
 
 
 def transform_v2dates(raw: str) -> str:
-    """Analyse du champ DATES GDELT (inspiré de parseDate_text)."""
+    """Analyse du champ DATES GDELT (parseDate_text) → JJ-MM-AAAA."""
     if not raw:
         return "NA"
 
     dates = []
-    # Dans GDELT, les blocs de dates sont séparés par ';#' ou ';'
     for date_block in raw.split(";#"):
         date_block = date_block.strip()
         if not date_block:
             continue
 
         parts = date_block.split("#")
-        # certains dumps mettent un # initial → on enlève les vides
         parts = [p for p in parts if p != ""]
 
         if len(parts) == 5:
-            # DateResolution, Month, Day, Year, Offset
             dr, month, day, year, offset = parts
         else:
             dr, month, day, year, offset = "0", "0", "0", "0", "0"
 
-        # Construction AAAAMMJJ (ou 0000MMJJ si année inconnue)
         try:
             y = int(year)
             m = int(month)
@@ -211,15 +214,15 @@ def transform_v2dates(raw: str) -> str:
         except:
             y = m = d = 0
 
-        if y != 0:
-            if d != 0:
-                formatted = f"{y:04d}{m:02d}{d:02d}"
-            elif m != 0:
-                formatted = f"{y:04d}{m:02d}00"
-            else:
-                formatted = f"{y:04d}0000"
+        # format JJ-MM-AAAA (ou 00-00-AAAA / JJ-MM-0000 selon ce qui manque)
+        if y != 0 and m != 0 and d != 0:
+            formatted = f"{d:02d}-{m:02d}-{y:04d}"
+        elif y != 0 and m != 0:
+            formatted = f"00-{m:02d}-{y:04d}"
+        elif y != 0:
+            formatted = f"00-00-{y:04d}"
         else:
-            formatted = f"0000{m:02d}{d:02d}"
+            formatted = f"{d:02d}-{m:02d}-0000"
 
         try:
             offs = int(offset)
@@ -237,28 +240,44 @@ def transform_v2dates(raw: str) -> str:
 
     return f"{len(dates)} date(s) : " + " | ".join(dates)
 
-
 LOCATION_TYPE_MAP = {1:"Pays", 2:"Région / État / Province", 3:"Ville", 4:"Point d'intérêt", 5:"Entité mondiale"}
 
 def transform_v2locations(raw: str) -> str:
-    if not raw: return "NA"
-    blocks  = [b.strip() for b in raw.split(";") if b.strip()]
+    if not raw:
+        return "NA"
+    blocks = [b.strip() for b in raw.split(";") if b.strip()]
+
+    seen = set()
     results = []
     for block in blocks:
         parts = block.split("#")
-        if len(parts) < 3: continue
+        if len(parts) < 3:
+            continue
         try:
-            lt  = LOCATION_TYPE_MAP.get(int(parts[0]), f"Type {parts[0]}")
-            fn  = parts[1].strip()
-            co  = parts[2].strip()
+            lt = LOCATION_TYPE_MAP.get(int(parts[0]), f"Type {parts[0]}")
+            fn = parts[1].strip()
+            co = parts[2].strip()
             lat = parts[5].strip() if len(parts) > 5 and parts[5] else None
             lon = parts[6].strip() if len(parts) > 6 and parts[6] else None
-            s   = f"{lt} : {fn} ({co})"
-            if lat and lon: s += f" — coordonnées : {lat}°N, {lon}°E"
+
+            # clé de dédoublonnage (type + nom + pays + coords)
+            key = (lt, fn, co, lat, lon)
+            if key in seen:
+                continue
+            seen.add(key)
+
+            s = f"{lt} : {fn} ({co})"
+            if lat and lon:
+                s += f" — coordonnées : {lat}°N, {lon}°E"
             results.append(s)
-        except: continue
-    if not results: return "NA"
-    return f"{len(results)} localisation(s) :\n" + "\n".join(f"  • {r}" for r in results)
+        except:
+            continue
+
+    if not results:
+        return "NA"
+
+    # Remplace les gros points par des tirets
+    return f"{len(results)} localisation(s) :\n" + "\n".join(f"- {r}" for r in results)
 
 
 def transform_list_field(raw: str, label: str) -> str:
