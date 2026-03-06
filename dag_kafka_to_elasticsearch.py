@@ -449,8 +449,8 @@ consumer_timeout_ms=KAFKA_CONSUME_TIMEOUT,
 with DAG(
     dag_id="kafka_to_elasticsearch",
     description="Kafka 'test' → Parse GDELT → Transformations → Elasticsearch",
-    schedule_interval=None,
-    start_date=datetime(2025, 2, 4),
+    schedule_interval="*/15 * * * *",
+    start_date=datetime(2025, 2, 27),
     catchup=False,
     tags=["gdelt", "kafka", "elasticsearch", "phase4"]
 ) as dag:
