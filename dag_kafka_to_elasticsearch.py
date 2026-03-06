@@ -255,18 +255,26 @@ def transform_v2locations(raw: str) -> str:
             continue
         try:
             lt = LOCATION_TYPE_MAP.get(int(parts[0]), f"Type {parts[0]}")
-            fn = parts[1].strip()
-            co = parts[2].strip()
+            full_name = parts[1].strip()          # ex: "Iranian", "American"
+            country = parts[2].strip()            # ex: "IR", "US"
             lat = parts[5].strip() if len(parts) > 5 and parts[5] else None
             lon = parts[6].strip() if len(parts) > 6 and parts[6] else None
 
-            # clé de dédoublonnage (type + nom + pays + coords)
-            key = (lt, fn, co, lat, lon)
+            # Normalisation très simple du nom pour les pays
+            norm_name = full_name
+            if lt == "Pays":
+                # enlève un 's' final ou 'ans' final, si même code pays
+                if norm_name.lower().endswith("ans"):
+                    norm_name = norm_name[:-3]
+                elif norm_name.lower().endswith("s"):
+                    norm_name = norm_name[:-1]
+
+            key = (lt, norm_name.lower(), country, lat, lon)
             if key in seen:
                 continue
             seen.add(key)
 
-            s = f"{lt} : {fn} ({co})"
+            s = f"{lt} : {norm_name} ({country})"
             if lat and lon:
                 s += f" — coordonnées : {lat}°N, {lon}°E"
             results.append(s)
@@ -276,7 +284,6 @@ def transform_v2locations(raw: str) -> str:
     if not results:
         return "NA"
 
-    # Remplace les gros points par des tirets
     return f"{len(results)} localisation(s) :\n" + "\n".join(f"- {r}" for r in results)
 
 
