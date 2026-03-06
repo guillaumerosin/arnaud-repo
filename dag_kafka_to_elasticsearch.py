@@ -185,6 +185,42 @@ def transform_v2gcam(raw: str) -> str:
 
     return result
 
+def transform_counts(raw: str) -> str:
+    """
+    Résume V1COUNTS / V2COUNTS / Amounts.
+    Format GKG typique :
+      COUNTTYPE#VALUE#OBJECTTYPE#LOCATIONTYPE#LOCATIONFULLNAME#...
+    On renvoie une phrase compacte.
+    """
+    if not raw:
+        return "NA"
+
+    blocks = [b.strip() for b in raw.split(";") if b.strip()]
+    results = []
+
+    for block in blocks:
+        parts = block.split("#")
+        if len(parts) < 2:
+            continue
+
+        ctype = parts[0].strip()       # type de compteur (ex: KILL)
+        try:
+            value = int(float(parts[1]))
+        except:
+            value = 0
+
+        obj = parts[2].strip() if len(parts) > 2 and parts[2].strip() else "objets"
+        loc = parts[4].strip() if len(parts) > 4 and parts[4].strip() else ""
+
+        if loc:
+            results.append(f"{value} × {ctype} sur {obj} à {loc}")
+        else:
+            results.append(f"{value} × {ctype} sur {obj}")
+
+    if not results:
+        return "NA"
+
+    return "; ".join(results[:10])
 
 def transform_v2dates(raw: str) -> str:
     """Analyse du champ DATES GDELT (parseDate_text) → JJ-MM-AAAA."""
@@ -295,20 +331,24 @@ def transform_list_field(raw: str, label: str) -> str:
 
 def transform_message(raw: dict) -> dict:
     return {
-        "id":               raw.get("GKGRECORDID", ""),
-        "source":           raw.get("SourceCommonName", ""),
-        "url":              raw.get("DocumentIdentifier", ""),
+        "id": raw.get("GKGRECORDID", ""),
+        "source": raw.get("SourceCommonName", ""),
+        "url": raw.get("DocumentIdentifier", ""),
         "date_publication": transform_date(raw.get("DATE", "")),
-        "source_type":      transform_source_type(raw.get("SourceCollectionIdentifier", "")),
-        "tone":             transform_v15tone(raw.get("V1.5TONE", "")),
-        "gcam":             transform_v2gcam(raw.get("GCAM", "")),
-        "dates_in_text":    transform_v2dates(raw.get("DATES", "")),
-        "persons":          transform_list_field(raw.get("V1PERSONS", ""),       "personne"),
-        "organizations":    transform_list_field(raw.get("V1ORGANIZATIONS", ""), "organisation"),
-        "themes":           transform_list_field(raw.get("V1THEMES", ""),        "thème"),
-        "locations":        transform_v2locations(raw.get("V2LOCATIONS", "")),
-        "image":            raw.get("SharingImage", "") or "NA",
-        "ingested_at":      datetime.utcnow().isoformat() + "Z",
+        "source_type": transform_source_type(raw.get("SourceCollectionIdentifier", "")),
+        "tone": transform_v15tone(raw.get("V1.5TONE", "")),
+        "gcam": transform_v2gcam(raw.get("GCAM", "")),
+        "dates_in_text": transform_v2dates(raw.get("DATES", "")),
+        "persons": transform_list_field(raw.get("V1PERSONS", ""), "personne"),
+        "organizations": transform_list_field(raw.get("V1ORGANIZATIONS", ""), "organisation"),
+        "themes": transform_list_field(raw.get("V1THEMES", ""), "thème"),
+        "locations": transform_v2locations(raw.get("V2LOCATIONS", "")),
+        "numeric_counts": transform_counts(raw.get("V2COUNTS", "") or raw.get("V1COUNTS", "")),
+        "amounts": transform_counts(raw.get("Amounts", "")),
+        "image": raw.get("SharingImage", "") or "NA",
+        "videos": raw.get("SocialVideoEmbeds", "") or "NA",
+        "extra_xml": raw.get("Extras", "") or "NA",
+        "ingested_at": datetime.utcnow().isoformat() + "Z",
     }
 
 
