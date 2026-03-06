@@ -74,39 +74,41 @@ def transform_date(raw: str) -> str:
 
 
 def transform_v15tone(raw: str) -> str:
-    if not raw: return "NA"
-    parts = raw.strip().split(",")
-    if len(parts) != 7:
-        return f"Format invalide ({len(parts)} valeurs attendu 7)."
+    """Analyse du score de tonalité V1.5TONE avec commentaire détaillé (parse_v1_5tone)."""
+    if not raw:
+        return "NA"
+
     try:
-        tone, pos, neg, pol, act, self_, wc = (
-            float(parts[0]), float(parts[1]), float(parts[2]),
-            float(parts[3]), float(parts[4]), float(parts[5]),
-            int(float(parts[6]))
-        )
-    except:
-        return f"NA"
+        parts = list(map(float, raw.strip().split(",")))
+        if len(parts) != 7:
+            raise ValueError("7 dimensions attendues")
+        tone_score = parts[0]
+    except Exception as e:
+        logging.error(f"Erreur transform_v15tone : {e}")
+        return "NA"
 
-    if   tone < -10: tl = "extrêmement négatif"
-    elif tone <  -5: tl = "très négatif"
-    elif tone <  -2: tl = "négatif"
-    elif tone < -0.5:tl = "légèrement négatif"
-    elif tone <=  0.5:tl= "neutre"
-    elif tone <=  2: tl = "légèrement positif"
-    elif tone <=  5: tl = "positif"
-    elif tone <= 10: tl = "très positif"
-    else:            tl = "extrêmement positif"
+    # Commentaire qualitatif
+    if tone_score >= 60:
+        comment = "Excellent"
+    elif tone_score >= 30:
+        comment = "Très positif"
+    elif tone_score > 0:
+        comment = "Plutôt positif"
+    elif tone_score == 0:
+        comment = "Neutre"
+    elif tone_score >= -30:
+        comment = "Plutôt négatif"
+    elif tone_score >= -60:
+        comment = "Très négatif"
+    else:
+        comment = "Catastrophique"
 
-    vocab = (f"vocabulaire négatif dominant ({neg}% vs {pos}%)" if neg > pos + 1 else
-             f"vocabulaire positif dominant ({pos}% vs {neg}%)" if pos > neg + 1 else
-             f"vocabulaire équilibré (positif {pos}%, négatif {neg}%)")
-    al = "très actif"  if act   >= 8  else "modérément actif" if act   >= 3 else "passif"
-    sl = "subjectif"   if self_ >= 2  else "légèrement personnel" if self_ >= 0.5 else "impersonnel"
-    wl = "très court"  if wc < 100   else "court" if wc < 300 else "standard" if wc < 800 else "long" if wc < 2000 else "très long"
-
-    return (f"Ton {tl} (score = {tone}). {vocab.capitalize()}. "
-            f"Charge émotionnelle : {pol}. Style {al} (densité action = {act}). "
-            f"Registre {sl} (self/group = {self_}). Document {wl} ({wc} mots).")
+    return (
+        f"Ton {comment} (score={tone_score}, "
+        f"positive={parts[1]}%, negative={parts[2]}%, "
+        f"polarity={parts[3]}, activity={parts[4]}, "
+        f"self_group={parts[5]}, word_count={int(parts[6])})"
+    )
 
 
 _CB = {}
@@ -171,24 +173,60 @@ def transform_v2gcam(raw: str) -> str:
 
 
 def transform_v2dates(raw: str) -> str:
-    if not raw: return "NA"
-    blocks  = [b.strip() for b in raw.split(";#") if b.strip()]
-    results = []
-    for block in blocks:
-        parts = [p for p in block.split("#") if p != ""]
-        if len(parts) != 5: continue
+    """Analyse du champ DATES GDELT (inspiré de parseDate_text)."""
+    if not raw:
+        return "NA"
+
+    dates = []
+    # Dans GDELT, les blocs de dates sont séparés par ';#' ou ';'
+    for date_block in raw.split(";#"):
+        date_block = date_block.strip()
+        if not date_block:
+            continue
+
+        parts = date_block.split("#")
+        # certains dumps mettent un # initial → on enlève les vides
+        parts = [p for p in parts if p != ""]
+
+        if len(parts) == 5:
+            # DateResolution, Month, Day, Year, Offset
+            dr, month, day, year, offset = parts
+        else:
+            dr, month, day, year, offset = "0", "0", "0", "0", "0"
+
+        # Construction AAAAMMJJ (ou 0000MMJJ si année inconnue)
         try:
-            res, mo, d, y, offset = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3]), int(parts[4])
-            if   res == 1: date_str = f"{y:04d}0000000000"
-            elif res == 2: date_str = f"{y:04d}{mo:02d}00000000"
-            elif res == 3: date_str = f"{y:04d}{mo:02d}{d:02d}000000"
-            elif res == 4: date_str = f"0000{mo:02d}{d:02d}000000"
-            else:          date_str = "00000000000000"
-            pos = "titre/intro" if offset < 200 else "corps" if offset < 1000 else "conclusion"
-            results.append(f"{date_str} (position {offset}, {pos})")
-        except: continue
-    if not results: return "NA"
-    return f"{len(results)} date(s) mentionnée(s) :\n" + "\n".join(f"  • {r}" for r in results)
+            y = int(year)
+            m = int(month)
+            d = int(day)
+        except:
+            y = m = d = 0
+
+        if y != 0:
+            if d != 0:
+                formatted = f"{y:04d}{m:02d}{d:02d}"
+            elif m != 0:
+                formatted = f"{y:04d}{m:02d}00"
+            else:
+                formatted = f"{y:04d}0000"
+        else:
+            formatted = f"0000{m:02d}{d:02d}"
+
+        try:
+            offs = int(offset)
+        except:
+            offs = 0
+
+        position = "titre/intro" if offs < 200 else "corps" if offs < 1000 else "conclusion"
+
+        dates.append(
+            f"{formatted} (res={dr}, pos={position}, offset={offs})"
+        )
+
+    if not dates:
+        return "NA"
+
+    return f"{len(dates)} date(s) : " + " | ".join(dates)
 
 
 LOCATION_TYPE_MAP = {1:"Pays", 2:"Région / État / Province", 3:"Ville", 4:"Point d'intérêt", 5:"Entité mondiale"}
