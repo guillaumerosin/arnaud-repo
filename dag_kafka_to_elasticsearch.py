@@ -124,46 +124,60 @@ def _dlabel(d):
     return "très élevée"
 
 def transform_v2gcam(raw: str) -> str:
-    if not raw: return "NA"
+    if not raw:
+        return "NA"
     entries = [e.strip() for e in raw.strip().split(",") if ":" in e]
     wc = 1
     for e in entries:
         k, _, v = e.partition(":")
         if k == "wc":
-            try: wc = int(v)
-            except: pass
+            try:
+                wc = int(v)
+            except:
+                pass
 
     count_items, value_items = [], []
     for e in entries:
         k, _, v = e.partition(":")
-        if k in ("wc", "nwc"): continue
+        if k in ("wc", "nwc"):
+            continue
         elif k.startswith("c"):
             dim = k[1:]
             try:
-                count   = int(v)
+                count = int(v)
                 density = round((count / max(wc, 1)) * 100, 3)
-                info    = _CB.get(dim)
-                name    = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
+                info = _CB.get(dim)
+                name = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
                 count_items.append((density, f"{name} : {count} mots ({density}%, {_dlabel(density)})"))
-            except: pass
+            except:
+                pass
         elif k.startswith("v"):
             dim = k[1:]
             try:
                 score = float(v)
-                info  = _CB.get(dim)
-                name  = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
+                info = _CB.get(dim)
+                name = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
                 value_items.append(f"{name} : score = {round(score, 4)}")
-            except: pass
+            except:
+                pass
 
     if not count_items and not value_items:
         return "NA"
 
+    # tri par densité décroissante
     count_items.sort(key=lambda x: x[0], reverse=True)
-    result = (
-              f"Top 10 dimensions par densité :\n" +
-              "\n".join(f"  - {l}" for _, l in count_items[:10]))
+
+    # On SUPPRIME la première phrase sur le nombre de dimensions
+    # et on remplace les puces "•" par des tirets "-".
+    top_lines = [l for _, l in count_items[:10]]
+    top_block = "\n".join(f"- {l}" for l in top_lines)
+
+    result = "Top 10 dimensions par densité :\n" + top_block
+
     if value_items:
-        result += "\nScores continus (extrait) :\n" + "\n".join(f"  - {l}" for l in value_items[:5])
+        value_block = "\n".join(f"- {l}" for l in value_items[:5])
+        result += "\nScores continus (extrait) :\n" + value_block
+
     return result
 
 
