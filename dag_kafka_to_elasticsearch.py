@@ -159,11 +159,11 @@ def transform_v2gcam(raw: str) -> str:
         return "NA"
 
     count_items.sort(key=lambda x: x[0], reverse=True)
-    result = (f"Document de {wc} mots. {len(count_items)} dimensions, {len(value_items)} scores continus.\n"
+    result = (
               f"Top 10 dimensions par densité :\n" +
-              "\n".join(f"  • {l}" for _, l in count_items[:10]))
+              "\n".join(f"  - {l}" for _, l in count_items[:10]))
     if value_items:
-        result += "\nScores continus (extrait) :\n" + "\n".join(f"  • {l}" for l in value_items[:5])
+        result += "\nScores continus (extrait) :\n" + "\n".join(f"  - {l}" for l in value_items[:5])
     return result
 
 
