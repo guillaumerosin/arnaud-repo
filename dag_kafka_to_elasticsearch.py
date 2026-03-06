@@ -88,19 +88,19 @@ def transform_v15tone(raw: str) -> str:
         return "NA"
 
     if tone_score >= 60:
-        comment = "Ton excellent"
+        comment = "Excellent"
     elif tone_score >= 30:
-        comment = "Ton très positif"
+        comment = "Très positif"
     elif tone_score > 0:
-        comment = "Ton plutôt positif"
+        comment = "Plutôt positif"
     elif tone_score == 0:
-        comment = "Ton neutre"
+        comment = "Neutre"
     elif tone_score >= -30:
-        comment = "Ton plutôt négatif"
+        comment = "Plutôt négatif"
     elif tone_score >= -60:
-        comment = "Ton très négatif"
+        comment = "Très négatif"
     else:
-        comment = "Ton catastrophique"
+        comment = "Catastrophique"
 
     # On ne garde que le commentaire textuel
     return f"Ton {comment}"
