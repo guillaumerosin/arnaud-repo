@@ -346,7 +346,7 @@ def consume_data(**context):
     bootstrap_servers=KAFKA_BROKERS,
     auto_offset_reset="earliest",
     group_id=None,              # consumer "stateless" pour batch
-    consumer_timeout_ms=120_000,
+consumer_timeout_ms=KAFKA_CONSUME_TIMEOUT,
     max_poll_records=5000,
     value_deserializer=lambda x: x
 )
@@ -355,9 +355,9 @@ def consume_data(**context):
 
     count_ok = count_error = 0
 
-    # ── Boucle de consommation (slide 48) ─────────────────────────
+    # ── Boucle de consommation ─────────────────────────
     for message in consumer:
-        sensor_data = message.value            # bytes bruts
+        sensor_data = message.value  # bytes bruts
 
         try:
             raw_str = sensor_data.decode("utf-8", errors="replace").strip()
@@ -371,22 +371,19 @@ def consume_data(**context):
             # Transformation en document lisible humain
             doc = transform_message(raw_dict)
 
-            # ID unique : clé Kafka → id GDELT → fallback partition-offset
-            # Ignore message.key (vaut "id" pour tous les messages)
-            # Utilise directement l'ID GDELT, sinon fallback partition-offset
+            # ID unique : id GDELT → fallback partition-offset
             if doc.get("id") and doc["id"] != "":
                 doc_id = doc["id"]
             else:
                 doc_id = f"{message.partition}-{message.offset}"
 
-
-
             # Indexation dans Elasticsearch
             index_to_elasticsearch(es, doc, doc_id)
-            logging.info(f"Indexed to Elasticsearch: {doc_id}")
-            logging.info(doc)
-
             count_ok += 1
+
+            # Log toutes les 500 insertions
+            if count_ok % 500 == 0:
+                logging.info(f"Indexed {count_ok} documents, last id={doc_id}")
 
         except Exception as e:
             logging.error(f"Failed to index data: {e}")
@@ -396,10 +393,10 @@ def consume_data(**context):
 
     logging.info(
         f"\n[RÉSUMÉ] ──────────────────────────────────\n"
-        f"  Topic    : {KAFKA_TOPIC}\n"
-        f"  Indexés  : {count_ok}\n"
-        f"  Erreurs  : {count_error}\n"
-        f"  Index ES : {ES_INDEX}\n"
+        f"  Topic   : {KAFKA_TOPIC}\n"
+        f"  Indexés : {count_ok}\n"
+        f"  Erreurs : {count_error}\n"
+        f"  Index ES: {ES_INDEX}\n"
         f"────────────────────────────────────────────"
     )
 
