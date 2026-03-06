@@ -222,6 +222,41 @@ def transform_counts(raw: str) -> str:
 
     return "; ".join(results[:10])
 
+
+def transform_amounts(raw: str) -> str:
+    """
+    Résume la colonne Amounts.
+    Format observé typique :
+        VALUE,LABEL,OFFSET;
+    Exemple :
+        5,players listed,43;2,injured players,122;
+    → "5 players listed; 2 injured players"
+    """
+    if not raw:
+        return "NA"
+
+    blocks = [b.strip() for b in str(raw).split(";") if b.strip()]
+    results = []
+
+    for block in blocks:
+        parts = [p.strip() for p in block.split(",") if p.strip()]
+        if len(parts) < 2:
+            continue
+
+        try:
+            value = int(float(parts[0]))
+        except Exception:
+            value = 0
+
+        label = parts[1]
+        results.append(f"{value} {label}")
+
+    if not results:
+        return "NA"
+
+    # On limite pour éviter des textes trop longs
+    return "; ".join(results[:10])
+
 def transform_v2dates(raw: str) -> str:
     """Analyse du champ DATES GDELT (parseDate_text) → JJ-MM-AAAA."""
     if not raw:
@@ -344,7 +379,8 @@ def transform_message(raw: dict) -> dict:
         "themes": transform_list_field(raw.get("V1THEMES", ""), "thème"),
         "locations": transform_v2locations(raw.get("V2LOCATIONS", "")),
         "numeric_counts": transform_counts(raw.get("V2COUNTS", "") or raw.get("V1COUNTS", "")),
-        "amounts": transform_counts(raw.get("Amounts", "")),
+        # ⬇️ ligne corrigée
+        "amounts": transform_amounts(raw.get("Amounts", "")),
         "image": raw.get("SharingImage", "") or "NA",
         "videos": raw.get("SocialVideoEmbeds", "") or "NA",
         "extra_xml": raw.get("Extras", "") or "NA",
