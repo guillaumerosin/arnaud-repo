@@ -384,15 +384,12 @@ def consume_data(**context):
     consumer = KafkaConsumer(
     KAFKA_TOPIC,
     bootstrap_servers=KAFKA_BROKERS,
-    auto_offset_reset="earliest",
-    group_id=None,              # consumer "stateless" pour batch
-consumer_timeout_ms=KAFKA_CONSUME_TIMEOUT,
+    auto_offset_reset="earliest",          # premier run : lit depuis le début
+    group_id="gdelt-elastic-group",        # groupe fixe → offsets mémorisés
+    consumer_timeout_ms=KAFKA_CONSUME_TIMEOUT,
     max_poll_records=5000,
     value_deserializer=lambda x: x
 )
-
-
-
     count_ok = count_error = 0
 
     # ── Boucle de consommation ─────────────────────────
@@ -449,11 +446,12 @@ consumer_timeout_ms=KAFKA_CONSUME_TIMEOUT,
 with DAG(
     dag_id="kafka_to_elasticsearch",
     description="Kafka 'test' → Parse GDELT → Transformations → Elasticsearch",
-    schedule_interval="*/15 * * * *",
-    start_date=datetime(2025, 2, 27),
+    schedule_interval="*/15 * * * *",  # exécution toutes les 15 minutes
+    start_date=datetime(2025, 2, 4),
     catchup=False,
     tags=["gdelt", "kafka", "elasticsearch", "phase4"]
 ) as dag:
+
 
     task = PythonOperator(
         task_id="consume_data",
