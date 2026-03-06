@@ -15,16 +15,14 @@ from elasticsearch import Elasticsearch
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-KAFKA_BROKERS         = "172.20.0.51:9092"
-KAFKA_TOPIC           = "test"
-KAFKA_GROUP_ID = "gdelt-elastic-group-v2"
-KAFKA_CONSUME_TIMEOUT = 60_000
+KAFKA_BROKERS = "172.20.0.51:9092"
+KAFKA_TOPIC = "test"
+KAFKA_CONSUME_TIMEOUT = 60_000  # ms
 
-ES_HOST     = "https://172.20.0.201:9200"
-ES_USER     = "user_kawasaki" 
+ES_HOST = "https://172.20.0.201:9200"
+ES_USER = "user_kawasaki"
 ES_PASSWORD = "wTwF0UQRqL4it4j"
-ES_INDEX    = "gdelt-gkg"
-
+ES_INDEX = "gdelt-gkg"
 
 # ─── COLONNES GDELT GKG 2.1 ───────────────────────────────────────────────────
 
@@ -347,11 +345,12 @@ def consume_data(**context):
     KAFKA_TOPIC,
     bootstrap_servers=KAFKA_BROKERS,
     auto_offset_reset="earliest",
-    group_id=None,
+    group_id=None,              # consumer "stateless" pour batch
     consumer_timeout_ms=120_000,
     max_poll_records=1000,
     value_deserializer=lambda x: x
 )
+
 
 
     count_ok = count_error = 0
