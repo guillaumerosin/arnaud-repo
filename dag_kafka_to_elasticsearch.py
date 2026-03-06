@@ -12,19 +12,17 @@ from airflow.operators.python import PythonOperator
 from kafka import KafkaConsumer
 from elasticsearch import Elasticsearch
 
-
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-KAFKA_BROKERS         = "172.20.0.51:9092"
-KAFKA_TOPIC           = "test"
+KAFKA_BROKERS = "172.20.0.51:9092"
+KAFKA_TOPIC = "test"
 KAFKA_GROUP_ID = "gdelt-elastic-group-v2"
 KAFKA_CONSUME_TIMEOUT = 60_000
 
-ES_HOST     = "https://172.20.0.201:9200"
-ES_USER     = "user_kawasaki" 
+ES_HOST = "https://172.20.0.201:9200"
+ES_USER = "user_kawasaki"
 ES_PASSWORD = "wTwF0UQRqL4it4j"
-ES_INDEX    = "gdelt-gkg"
-
+ES_INDEX = "gdelt-gkg"
 
 # ─── COLONNES GDELT GKG 2.1 ───────────────────────────────────────────────────
 
@@ -37,12 +35,14 @@ GKG_COLUMNS = [
     "Quotations", "AllNames", "Amounts", "TranslationInfo", "Extras",
 ]
 
+
 def parse_gdelt_line(line: str) -> dict:
     parts = line.strip().split("\t")
     return {col: (parts[i].strip() if i < len(parts) else "") for i, col in enumerate(GKG_COLUMNS)}
 
 
 # ─── TRANSFORMATEURS ──────────────────────────────────────────────────────────
+
 SOURCE_TYPE_MAP = {
     1: "WEB",
     2: "CITATIONONLY",
@@ -66,15 +66,17 @@ def transform_source_type(raw) -> str:
 
 
 def transform_date(raw: str) -> str:
-    """YYYYMMDDHHMMSS → YYYYMMDDHHMMSS normalisé (complète avec des 0 si partiel)."""
+    """YYYYMMDDHHMMSS → YYYYMMDD (on garde seulement année, mois, jour)."""
     val = str(raw).strip()
     if not val or val == "0":
-        return "00000000000000"
-    return val.ljust(14, "0")[:14]
+        return "00000000"
+    # Complète à 8 caractères minimum puis tronque à AAAAMMJJ
+    return val.ljust(8, "0")[:8]
 
 
 def transform_v15tone(raw: str) -> str:
-    if not raw: return "NA"
+    if not raw:
+        return "NA"
     parts = raw.strip().split(",")
     if len(parts) != 7:
         return f"Format invalide ({len(parts)} valeurs attendu 7)."
@@ -87,22 +89,22 @@ def transform_v15tone(raw: str) -> str:
     except:
         return f"NA"
 
-    if   tone < -10: tl = "extrêmement négatif"
-    elif tone <  -5: tl = "très négatif"
-    elif tone <  -2: tl = "négatif"
-    elif tone < -0.5:tl = "légèrement négatif"
-    elif tone <=  0.5:tl= "neutre"
-    elif tone <=  2: tl = "légèrement positif"
-    elif tone <=  5: tl = "positif"
+    if tone < -10: tl = "extrêmement négatif"
+    elif tone < -5: tl = "très négatif"
+    elif tone < -2: tl = "négatif"
+    elif tone < -0.5: tl = "légèrement négatif"
+    elif tone <= 0.5: tl = "neutre"
+    elif tone <= 2: tl = "légèrement positif"
+    elif tone <= 5: tl = "positif"
     elif tone <= 10: tl = "très positif"
-    else:            tl = "extrêmement positif"
+    else: tl = "extrêmement positif"
 
     vocab = (f"vocabulaire négatif dominant ({neg}% vs {pos}%)" if neg > pos + 1 else
              f"vocabulaire positif dominant ({pos}% vs {neg}%)" if pos > neg + 1 else
              f"vocabulaire équilibré (positif {pos}%, négatif {neg}%)")
-    al = "très actif"  if act   >= 8  else "modérément actif" if act   >= 3 else "passif"
-    sl = "subjectif"   if self_ >= 2  else "légèrement personnel" if self_ >= 0.5 else "impersonnel"
-    wl = "très court"  if wc < 100   else "court" if wc < 300 else "standard" if wc < 800 else "long" if wc < 2000 else "très long"
+    al = "très actif" if act >= 8 else "modérément actif" if act >= 3 else "passif"
+    sl = "subjectif" if self_ >= 2 else "légèrement personnel" if self_ >= 0.5 else "impersonnel"
+    wl = "très court" if wc < 100 else "court" if wc < 300 else "standard" if wc < 800 else "long" if wc < 2000 else "très long"
 
     return (f"Ton {tl} (score = {tone}). {vocab.capitalize()}. "
             f"Charge émotionnelle : {pol}. Style {al} (densité action = {act}). "
@@ -118,45 +120,53 @@ try:
 except:
     pass
 
+
 def _dlabel(d):
     if d < 0.5: return "anecdotique"
-    if d < 1:   return "très faible"
-    if d < 3:   return "faible"
-    if d < 8:   return "modérée"
-    if d < 15:  return "élevée"
+    if d < 1: return "très faible"
+    if d < 3: return "faible"
+    if d < 8: return "modérée"
+    if d < 15: return "élevée"
     return "très élevée"
 
+
 def transform_v2gcam(raw: str) -> str:
-    if not raw: return "NA"
+    if not raw:
+        return "NA"
     entries = [e.strip() for e in raw.strip().split(",") if ":" in e]
     wc = 1
     for e in entries:
         k, _, v = e.partition(":")
         if k == "wc":
-            try: wc = int(v)
-            except: pass
+            try:
+                wc = int(v)
+            except:
+                pass
 
     count_items, value_items = [], []
     for e in entries:
         k, _, v = e.partition(":")
-        if k in ("wc", "nwc"): continue
+        if k in ("wc", "nwc"):
+            continue
         elif k.startswith("c"):
             dim = k[1:]
             try:
-                count   = int(v)
+                count = int(v)
                 density = round((count / max(wc, 1)) * 100, 3)
-                info    = _CB.get(dim)
-                name    = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
+                info = _CB.get(dim)
+                name = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
                 count_items.append((density, f"{name} : {count} mots ({density}%, {_dlabel(density)})"))
-            except: pass
+            except:
+                pass
         elif k.startswith("v"):
             dim = k[1:]
             try:
                 score = float(v)
-                info  = _CB.get(dim)
-                name  = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
+                info = _CB.get(dim)
+                name = f"{info[0]} / {info[1]}" if info else f"Dict.{dim.split('.')[0]} / dim.{dim}"
                 value_items.append(f"{name} : score = {round(score, 4)}")
-            except: pass
+            except:
+                pass
 
     if not count_items and not value_items:
         return "NA"
@@ -164,80 +174,103 @@ def transform_v2gcam(raw: str) -> str:
     count_items.sort(key=lambda x: x[0], reverse=True)
     result = (f"Document de {wc} mots. {len(count_items)} dimensions, {len(value_items)} scores continus.\n"
               f"Top 10 dimensions par densité :\n" +
-              "\n".join(f"  • {l}" for _, l in count_items[:10]))
+              "\n".join(f" • {l}" for _, l in count_items[:10]))
     if value_items:
-        result += "\nScores continus (extrait) :\n" + "\n".join(f"  • {l}" for l in value_items[:5])
+        result += "\nScores continus (extrait) :\n" + "\n".join(f" • {l}" for l in value_items[:5])
     return result
 
 
 def transform_v2dates(raw: str) -> str:
-    if not raw: return "NA"
-    blocks  = [b.strip() for b in raw.split(";#") if b.strip()]
+    """Retourne des dates AAAAMMJJ (ou 0000MMJJ) + position dans le texte."""
+    if not raw:
+        return "NA"
+    blocks = [b.strip() for b in raw.split(";#") if b.strip()]
     results = []
     for block in blocks:
         parts = [p for p in block.split("#") if p != ""]
-        if len(parts) != 5: continue
+        if len(parts) != 5:
+            continue
         try:
             res, mo, d, y, offset = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3]), int(parts[4])
-            if   res == 1: date_str = f"{y:04d}0000000000"
-            elif res == 2: date_str = f"{y:04d}{mo:02d}00000000"
-            elif res == 3: date_str = f"{y:04d}{mo:02d}{d:02d}000000"
-            elif res == 4: date_str = f"0000{mo:02d}{d:02d}000000"
-            else:          date_str = "00000000000000"
+            if res == 1:
+                date_str = f"{y:04d}0000"          # année seule
+            elif res == 2:
+                date_str = f"{y:04d}{mo:02d}00"    # année + mois
+            elif res == 3:
+                date_str = f"{y:04d}{mo:02d}{d:02d}"  # année + mois + jour
+            elif res == 4:
+                date_str = f"0000{mo:02d}{d:02d}" # sans année
+            else:
+                date_str = "00000000"
             pos = "titre/intro" if offset < 200 else "corps" if offset < 1000 else "conclusion"
             results.append(f"{date_str} (position {offset}, {pos})")
-        except: continue
-    if not results: return "NA"
-    return f"{len(results)} date(s) mentionnée(s) :\n" + "\n".join(f"  • {r}" for r in results)
+        except:
+            continue
+    if not results:
+        return "NA"
+    return f"{len(results)} date(s) mentionnée(s) :\n" + "\n".join(f" • {r}" for r in results)
 
 
-LOCATION_TYPE_MAP = {1:"Pays", 2:"Région / État / Province", 3:"Ville", 4:"Point d'intérêt", 5:"Entité mondiale"}
+LOCATION_TYPE_MAP = {
+    1: "Pays",
+    2: "Région / État / Province",
+    3: "Ville",
+    4: "Point d'intérêt",
+    5: "Entité mondiale",
+}
 
 def transform_v2locations(raw: str) -> str:
-    if not raw: return "NA"
-    blocks  = [b.strip() for b in raw.split(";") if b.strip()]
+    if not raw:
+        return "NA"
+    blocks = [b.strip() for b in raw.split(";") if b.strip()]
     results = []
     for block in blocks:
         parts = block.split("#")
-        if len(parts) < 3: continue
+        if len(parts) < 3:
+            continue
         try:
-            lt  = LOCATION_TYPE_MAP.get(int(parts[0]), f"Type {parts[0]}")
-            fn  = parts[1].strip()
-            co  = parts[2].strip()
+            lt = LOCATION_TYPE_MAP.get(int(parts[0]), f"Type {parts[0]}")
+            fn = parts[1].strip()
+            co = parts[2].strip()
             lat = parts[5].strip() if len(parts) > 5 and parts[5] else None
             lon = parts[6].strip() if len(parts) > 6 and parts[6] else None
-            s   = f"{lt} : {fn} ({co})"
-            if lat and lon: s += f" — coordonnées : {lat}°N, {lon}°E"
+            s = f"{lt} : {fn} ({co})"
+            if lat and lon:
+                s += f" — coordonnées : {lat}°N, {lon}°E"
             results.append(s)
-        except: continue
-    if not results: return "NA"
-    return f"{len(results)} localisation(s) :\n" + "\n".join(f"  • {r}" for r in results)
+        except:
+            continue
+    if not results:
+        return "NA"
+    return f"{len(results)} localisation(s) :\n" + "\n".join(f" • {r}" for r in results)
 
 
 def transform_list_field(raw: str, label: str) -> str:
-    if not raw: return f"NA"
+    if not raw:
+        return f"NA"
     items = [i.strip() for i in raw.split(";") if i.strip()]
-    if not items: return f"NA"
+    if not items:
+        return f"NA"
     r = f"{len(items)} {label}(s) : {', '.join(items[:10])}"
     return r + (" [...]" if len(items) > 10 else ".")
 
 
 def transform_message(raw: dict) -> dict:
     return {
-        "id":               raw.get("GKGRECORDID", ""),
-        "source":           raw.get("SourceCommonName", ""),
-        "url":              raw.get("DocumentIdentifier", ""),
+        "id": raw.get("GKGRECORDID", ""),
+        "source": raw.get("SourceCommonName", ""),
+        "url": raw.get("DocumentIdentifier", ""),
         "date_publication": transform_date(raw.get("DATE", "")),
-        "source_type":      transform_source_type(raw.get("SourceCollectionIdentifier", "")),
-        "tone":             transform_v15tone(raw.get("V1.5TONE", "")),
-        "gcam":             transform_v2gcam(raw.get("GCAM", "")),
-        "dates_in_text":    transform_v2dates(raw.get("DATES", "")),
-        "persons":          transform_list_field(raw.get("V1PERSONS", ""),       "personne"),
-        "organizations":    transform_list_field(raw.get("V1ORGANIZATIONS", ""), "organisation"),
-        "themes":           transform_list_field(raw.get("V1THEMES", ""),        "thème"),
-        "locations":        transform_v2locations(raw.get("V2LOCATIONS", "")),
-        "image":            raw.get("SharingImage", "") or "NA",
-        "ingested_at":      datetime.utcnow().isoformat() + "Z",
+        "source_type": transform_source_type(raw.get("SourceCollectionIdentifier", "")),
+        "tone": transform_v15tone(raw.get("V1.5TONE", "")),
+        "gcam": transform_v2gcam(raw.get("GCAM", "")),
+        "dates_in_text": transform_v2dates(raw.get("DATES", "")),
+        "persons": transform_list_field(raw.get("V1PERSONS", ""), "personne"),
+        "organizations": transform_list_field(raw.get("V1ORGANIZATIONS", ""), "organisation"),
+        "themes": transform_list_field(raw.get("V1THEMES", ""), "thème"),
+        "locations": transform_v2locations(raw.get("V2LOCATIONS", "")),
+        "image": raw.get("SharingImage", "") or "NA",
+        "ingested_at": datetime.utcnow().isoformat() + "Z",
     }
 
 
@@ -271,21 +304,20 @@ def consume_data(**context):
 
     # ── Connexion Kafka ─────────────────────────────────
     consumer = KafkaConsumer(
-    KAFKA_TOPIC,
-    bootstrap_servers=KAFKA_BROKERS,
-    auto_offset_reset="earliest",
-    group_id=None,
-    consumer_timeout_ms=120_000,
-    max_poll_records=1000,
-    value_deserializer=lambda x: x
-)
-
+        KAFKA_TOPIC,
+        bootstrap_servers=KAFKA_BROKERS,
+        auto_offset_reset="earliest",
+        group_id=None,
+        consumer_timeout_ms=120_000,
+        max_poll_records=1000,
+        value_deserializer=lambda x: x
+    )
 
     count_ok = count_error = 0
 
     # ── Boucle de consommation (slide 48) ─────────────────────────
     for message in consumer:
-        sensor_data = message.value            # bytes bruts
+        sensor_data = message.value  # bytes bruts
 
         try:
             raw_str = sensor_data.decode("utf-8", errors="replace").strip()
@@ -299,15 +331,11 @@ def consume_data(**context):
             # Transformation en document lisible humain
             doc = transform_message(raw_dict)
 
-            # ID unique : clé Kafka → id GDELT → fallback partition-offset
-            # Ignore message.key (vaut "id" pour tous les messages)
-            # Utilise directement l'ID GDELT, sinon fallback partition-offset
+            # ID unique : on utilise l'ID GDELT, sinon fallback partition-offset
             if doc.get("id") and doc["id"] != "":
                 doc_id = doc["id"]
             else:
                 doc_id = f"{message.partition}-{message.offset}"
-
-
 
             # Indexation dans Elasticsearch
             index_to_elasticsearch(es, doc, doc_id)
@@ -324,14 +352,14 @@ def consume_data(**context):
 
     logging.info(
         f"\n[RÉSUMÉ] ──────────────────────────────────\n"
-        f"  Topic    : {KAFKA_TOPIC}\n"
-        f"  Indexés  : {count_ok}\n"
-        f"  Erreurs  : {count_error}\n"
-        f"  Index ES : {ES_INDEX}\n"
+        f" Topic : {KAFKA_TOPIC}\n"
+        f" Indexés : {count_ok}\n"
+        f" Erreurs : {count_error}\n"
+        f" Index ES : {ES_INDEX}\n"
         f"────────────────────────────────────────────"
     )
 
-    context["ti"].xcom_push(key="count_ok",    value=count_ok)
+    context["ti"].xcom_push(key="count_ok", value=count_ok)
     context["ti"].xcom_push(key="count_error", value=count_error)
 
 
