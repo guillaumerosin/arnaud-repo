@@ -74,7 +74,7 @@ def transform_date(raw: str) -> str:
 
 
 def transform_v15tone(raw: str) -> str:
-    """Analyse du score de tonalité V1.5TONE avec commentaire détaillé (parse_v1_5tone)."""
+    """Analyse du score de tonalité V1.5TONE – retourne seulement un commentaire."""
     if not raw:
         return "NA"
 
@@ -87,28 +87,23 @@ def transform_v15tone(raw: str) -> str:
         logging.error(f"Erreur transform_v15tone : {e}")
         return "NA"
 
-    # Commentaire qualitatif
     if tone_score >= 60:
-        comment = "Excellent"
+        comment = "Ton excellent"
     elif tone_score >= 30:
-        comment = "Très positif"
+        comment = "Ton très positif"
     elif tone_score > 0:
-        comment = "Plutôt positif"
+        comment = "Ton plutôt positif"
     elif tone_score == 0:
-        comment = "Neutre"
+        comment = "Ton neutre"
     elif tone_score >= -30:
-        comment = "Plutôt négatif"
+        comment = "Ton plutôt négatif"
     elif tone_score >= -60:
-        comment = "Très négatif"
+        comment = "Ton très négatif"
     else:
-        comment = "Catastrophique"
+        comment = "Ton catastrophique"
 
-    return (
-        f"Ton {comment} (score={tone_score}, "
-        f"positive={parts[1]}%, negative={parts[2]}%, "
-        f"polarity={parts[3]}, activity={parts[4]}, "
-        f"self_group={parts[5]}, word_count={int(parts[6])})"
-    )
+    # On ne garde que le commentaire textuel
+    return f"Ton {comment}"
 
 
 _CB = {}
