@@ -17,7 +17,7 @@ from elasticsearch import Elasticsearch
 
 KAFKA_BROKERS = "172.20.0.51:9092"
 KAFKA_TOPIC = "test"
-KAFKA_CONSUME_TIMEOUT = 60_000  # ms
+KAFKA_CONSUME_TIMEOUT = 6_000  # ms
 
 ES_HOST = "https://172.20.0.201:9200"
 ES_USER = "user_kawasaki"
@@ -347,7 +347,7 @@ def consume_data(**context):
     auto_offset_reset="earliest",
     group_id=None,              # consumer "stateless" pour batch
     consumer_timeout_ms=120_000,
-    max_poll_records=1000,
+    max_poll_records=5000,
     value_deserializer=lambda x: x
 )
 
